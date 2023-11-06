@@ -1,13 +1,12 @@
 
-# About the project
+# Week 1
 
-*Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*
+My GitHub repo: https://github.com/konstavalentin96/IODS-project
 
-```{r}
-# This is a so-called "R chunk" where you can write R code.
+## Feelings about the course
 
-date()
+My colleague recommended this course to me as one of the best technical R courses she has taken, and so far it seems quite perfect. I have taken some basic statistics and R courses before but now I'm committing to do my own doctoral research with R, and I'm going to use very similar methods that are taught in this course. Despite some previous experience, I don't have a good grasp of how the workflow works with R, or what are the best practices so I'm looking forward to becoming a more fluent R user.  
 
-```
-The text continues here.
+I have worked with R Markdown before, but haven't used much else than just chunks of code, so the Markdown syntax was quite new to me but the good materials and instructions made it easy to use. The first exercises and the R for Health Data Science book were really useful for me to warm up to use R and handle data, and I already learned some new tricks (i.e. how to make specific changes to plots with ggplot2). Also finally learning to use GitHub after years of hearing about it is a good bonus.
 
+Looking forward to the rest of the course! 
