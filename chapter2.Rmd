@@ -1,4 +1,4 @@
-# Insert chapter 2 title here
+# Week 2 - Linear regression
 
 *Describe the work you have done this week and summarize your learning.*
 
@@ -6,8 +6,93 @@
 - Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
 - Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
 
+
+# Analysis
+
+## Reading the data into R, loading the needed libraries and exploring the dataset
+
 ```{r}
-date()
+# Read the data into R 
+analysis_data <- read.csv("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data/analysis.csv")
 ```
 
-Here we go again...
+```{r}
+# Load all the  needed libraries here
+library(ggplot2)
+library(GGally)
+library(dplyr)
+```
+```{r}
+# Exploring the data
+dim(analysis_data)
+str(analysis_data)
+
+data_visual <- ggpairs(analysis_data, lower = list(combo = wrap("facethist", bins = 20)))
+data_visual
+```
+
+So we have our data set, which consists of 166 observations and 7 variables. It has information gathered from students on a statistics course: basic characteristics like gender and age, but also information about the students' learning approaches (deep, surface and strategic learning, represented by deep, surf and stra variables in the dataset), presented as mean scores from questions about the corresponding approaches, as well as their attitude towards the course (sum of points of questions on attitude) and points they got on their exam.  
+
+In the ggpairs plot we can see that the distributions of the variables are mostly normal but a bit funky in some examples; age is very skewed to the right, attitude distribution rises in a linear fashion until it starts to decrease like a normally distributed one, and points distribution only really starts to rise after a while. However, the n of the sample is quite small so these type of curves are expected even when they arise from a normally distributed population. Age is expected to be like it is since the population in question consists of students, which tend to be quite young, with some older people present as well. 
+
+The dependent variable for the analysis is points, and it seems that it correlates the most with attitude (0.437), surf (-0.144) and stra (0.146) (correlation coeffiecients in brackets, the correlation coefficient scale is from -1 to +1, where -1 means perfect negative correlation, +1 means perfect positive correlation and 0 means no correlation at all). Based on these findings, the three explanatory variables in the analysis will be attitude, surf and stra. 
+
+## Multivariate linear regression
+
+In linear regression, we are trying to quantify the relationship of explanatory variables and the dependent variable; does the dependent variable change when the explanatory variables change? It can also be thought as prediction: can the value of the dependent variable be predicted by the explanatory variables? Here we are trying to quantify the relationship between explanatory variables attitude, surf and stra (surf = surface approach to learning, stra = strategic approach to learning) and the points they got on their exam. 
+
+
+
+```{r}
+# It seems that the attitude-column is a list, not a numeric vector, which causes problems (apparently the file doesn't knit if it has the faulty code so you can't see it here), so let's fix it
+analysis_data <- analysis_data %>% 
+  mutate(attitude = unlist(Attitude))
+```
+
+```{r}
+# Let's try again:
+model_1 <- lm(Points ~ attitude + surf + stra, data = analysis_data) 
+
+# Yay
+
+# Print the model results
+summary(model_1)
+```
+Coefficients are the weight of the explanatory variables (or intercept): how much does the dependent variable change when explanatory variable changes by 1? Intercept is the value of the dependent variable when the values of all explanatory variables are zero. 
+
+It seems that the coefficients for the intercept and attitude are the two statistically significant estimates, while surf and stra are not. A t-test is used to assess whether the coefficients are significantly different from zero (does the explanatory variable have a statistically significant relationship with the dependent variable) and the p-value is given for each coefficient (for attitude it is 1.93e-08). Next, we will only include attitude as explanatory variable. 
+
+## Improved linear regression model
+
+```{r}
+# New model
+model_2 <- lm(Points ~ attitude, data = analysis_data)
+summary(model_2)
+```
+
+With the improved model, the coefficient estimate for attitude is ~0.35, which means that according to the model, when attitude increases by 1, points increases by 0.35. When attitude is zero, then points are 11.6 (intercept). R-squared is a measurement of the quality of the model: it can be interpreted as the variance in the dependent variable that can be explained with the explanatory variables. In this case it is 0.1906 (R-squared ranges from 0 to 1), which means the model is far from perfect. However, the R-squared always increases when new variables are added to the model even when they are weakly associated with dependent variable. This can be adjusted for and the adjusted value is the Adjusted R-squared (in this case it is 0.1856). 
+
+## Diagnostics and assumptions of the regression model
+
+```{r}
+# Produce diagnostic plots for the model
+plot(model_2, which = c(1,2,5))
+```
+Assumptions of linear regression:
+1) Linearity: the relationship between the explanatory variable(s) and dependent variable is assumed to be linear
+2) Normality of residuals: residuals are assumed to be normally distributed
+3) The residuals are assumed to have a constant variance (homoscedasticity)
+
+Interpretation of the plots:
+
+Residuals vs Fitted:
+
+This plot can be used to assess whether some assumptions for the model hold true: 1) Linearity: mean residuals should be close to zero for every fitted value, indicated by the red line (true in our case); 2) Homoskedasticity: the variance of the residuals should be constant, meaning approximately the same amount of residuals accross the x-axis (a bit less on the left side in our model, but not much). It also plots outliers (in our case there are three at the bottom of the plot). 
+
+Q-Q residuals:
+
+Used to assess whether the residuals are normally distributed: the points should fall on the dash line as much as possible. In our case we have some points on each end that fall off the line, but the majority of the residuals are on the line which is a good sign. 
+
+Residuals vs Leverage:
+
+Plots standardized residuals (number of standard errors that residuals are away from the regression line) and identifies high leverage points. High leverage points are data points / observations that have a strong influence on the regression model, so the model would propably change if the observation was removed. If a point would fall outside of Cook's distance, it would be considered as a high leverage point. However, we don't even see a red dashed line in the plot, so we are clear. 
