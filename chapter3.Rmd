@@ -1,0 +1,156 @@
+# Week 3 - Logistic regression
+
+## Analysis
+
+### Load all the packages and read the data
+
+```{r}
+# Loading all the needed packages
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+# Read the data into R 
+alc <- read.csv("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data/alc.csv")
+```
+
+### Data set description:
+
+Data set has information on Portuguese students performance on two subjects: math and Portuguese language. Variables include grades, basic demographic and social and school related features. The data was originally in two separate data sets which were joined together. Variables "failures", "paid", "absences", "G1", "G2" and "G3" are averages of the values from the two data sets. G1-3 are grades from first, second and third periods. Variables alc_use and high_use were later added to the data; alc_use is the average alcohol consumption during the week and weekend, and high_use is TRUE if alc_use is higher than 2, otherwise it's marked as FALSE. 
+
+
+### Choosing variables for the analysis
+
+The purpose is to study the association of alcohol consumption with other interesting variables in the data set. The four variables I have chosen are absences (number of school absences, range: 0 to 93), goout (going out with friends, range: 1 to 5), higher (wants to take higher education, binary: yes or no) and famrel (quality of family relationships, range: 1 to 5). My hypothesis is that higher absences and higher goout are related to higher alcohol consumption, while higher famrel and higher 'higher' are associated with lower alcohol consumption. 
+
+
+### Graphical relationship between the variables
+
+
+#### Visual presentation of the relationship between alcohol use and wanting to pursue higher education
+
+```{r}
+# Plotting a bar plot
+plot1 <- ggplot(data = alc, aes(x = high_use, fill = higher))
+plot1 + geom_bar()
+```
+
+As can be seen, there doesn't seem to be much of a relationship here; the clear majority of both low and high alcohol consumption groups want to pursue high education. However, there is a bit higher proportion of students not wanting to get higher education in the high alcohol consumption group. My hypothesis may have been false, since students may well want to get a higher education and experiment a lot with alcohol at the same time. 
+
+It can also be seen that the number of students consuming high amounts of alcohol is roughly half of the students consuming low amounts. 
+
+
+#### Visual presentation of the relationship between alcohol use and the number of absences
+
+```{r}
+# Plotting a box plot
+plot2 <- ggplot(data = alc, aes(x = high_use, y = absences))
+
+plot2 + geom_boxplot()
+```
+
+
+There seem to be more absences in the high alcohol use group compared to low use group. This is in line with the hypothesis, interesting to see the regression results as there is no dramatic difference.
+
+
+
+#### Visual presentation of the relationship between alcohol use and the tendency to go out with friends
+
+```{r}
+# Plotting a bar plot
+plot3 <- ggplot(data = alc, aes(x = goout, fill = high_use))
+plot3 + geom_bar()
+```
+
+
+As expected, the proportion of students using high amounts of alcohol steadily rises as the going-out-with-friends tendency increases.
+
+
+#### Visual presentation of the relationship between alcohol use and the quality of family relationships
+
+```{r}
+# Plotting a bar plot
+plot4 <- ggplot(data = alc, aes(x = famrel, fill = high_use))
+plot4 + geom_bar()
+```
+
+Again, as expected the trend here seems to be that as the quality of family relationships increases, the high alcohol use decreases. 
+
+
+All in all, the visual results are mainly in line with my hypothesis. Let's see what regression analyses have to say.
+
+
+### Logistic regression model
+
+```{r}
+# Fitting the model
+model1 <- glm(high_use ~ higher + goout + absences + famrel, data = alc, family = "binomial")
+
+summary(model1)
+```
+The coefficients can be thought as odds ratios between a unit change of the variable vs no change. However, they have to be exponentiated first to get the odds ratios.
+
+Here, in case of the 'higher' variable, we can only see the coefficient for wanting to get a higher education. This is because the model compares it to the option of not wanting to get a higher education (not seen here, the coefficient for it is actually the intercept). 
+
+```{r}
+# Lets get the odds ratios by exponentiating the coefficients
+
+OR <- coef(model1) %>% exp()
+OR
+```
+
+```{r}
+# Let's get the confidence intervals for the ORs
+CI <- confint(model1) %>% exp()
+
+# Create a table with ORs and CIs
+cbind(OR, CI)
+```
+
+Here we can see that the CI of higherno contains 1, which means there is no evidence of it's association with alcohol use. As we can see from the model summary, the coefficient for higheryes is not statistically significant so we cannot conclude there is an association with it and alcohol consumption either. Thus, my hypothesis on this part was false.  
+
+Other coefficients are signficant, and it seems that going out with friends and absences are associated with higher alcohol consumption (ORs are over 1 and CIs don't cross under 1). For example, OR for goout is 2.14, which means one unit increase in the goout range(1-5), the odds of using high amounts of alcohol increases by 114% ((2.14-1)x100). Additionally, famrel is negatively associated with high_use: OR is 0.69, so the odds of using high amounts of alcohol decreases by 31% ((0.69-1)x100) with one unit increase in the quality of family relationships scale (1-5). 
+
+
+### Improved logistic regression model
+
+```{r}
+# Fitting another model with only statistically significant explanatory variables
+model2 <- glm(high_use ~ goout + absences + famrel, data = alc, family = "binomial")
+
+summary(model2)
+
+```
+
+
+
+```{r}
+# Calculating the probabilities of high alcohol use according to the model
+probabilities <- predict(model2, type = "response")
+
+# Adding the probabilities to the data set
+alc <- mutate(alc, probability = probabilities)
+
+# Adding a prediction column, where probability of over 0.5 means that the model predicts that the student uses high amounts of alcohol
+alc <- mutate(alc, prediction = probability > 0.5)
+
+# Create 2x2 cross tabulation of predictions versus the actual values
+table(high_use = alc$high_use, prediction = alc$prediction)
+```
+
+```{r}
+# Create a function to calculate the proportion of inaccurately predicted values
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+# Calculate the proportion
+loss_func(class = alc$high_use, prob = alc$probability)
+```
+
+So the proportion of inaccurate predictions is 24%. This seems to be quite a small error, since I would guess that alcohol consumption is a very complex behaviour with multiple explanatory variables, and I wouldn't have though that 3 variables would be this good at predicting it. However, the threshold for high use is quite arbitruary and with a different one the result would be different as well. 
+
