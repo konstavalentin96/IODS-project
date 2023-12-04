@@ -56,3 +56,39 @@ dim(human) # The new data set has 195 observations and 19 variables as instructe
 setwd("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data")
 write_csv(x = human, "human.csv")
 
+
+
+# Week 5 Data Wrangling
+
+# Load the data
+human <- read.csv("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data/human.csv")
+
+# Explore structure and dimensions
+
+str(human) # Data set has one character vector as a column (list of the countries included), other columns are numerical/integers
+dim(human) # Data set has 195 observations and 19 variables as it should
+
+## The data set includes information on countries' Human Development Index (HDI) and Gender Inequality Index (GII), which describe achievements in key dimensions of human development (such as a long and healthy life) and on inequalities between genders
+
+
+# Keep only needed columns
+
+human <- human %>% 
+  select("Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F")
+
+# Remove rows with missing values
+
+human <- na.omit(human)
+
+# Remove observations relating to regions instead of countries
+
+tail(human, n = 10) # Last 6 observations need to be removed
+last <- nrow(human)-7
+human <- human[1:last, ]
+
+dim(human) # Data set has 155 observations and 9 variables including "Country"
+
+
+# Save the data
+setwd("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data")
+write_csv(x = human, "human.csv")
