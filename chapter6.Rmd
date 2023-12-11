@@ -1,0 +1,315 @@
+# Week 6 - Analysis of longitudinal data
+
+## Analysis
+
+### Load needed packages and the data sets
+
+```{r}
+# Load packages
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(lme4)
+```
+
+```{r}
+# Load the data sets (they are in long format now)
+rats <- read.csv("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data/rats.csv")
+bprs <- read.csv("C:/Users/kveu/Work Folders/PhD Research/Courses/IODS/IODS-project/Data/bprs.csv")
+```
+
+```{r}
+# Make sure the categorical variables are factors
+
+bprs <- bprs %>% 
+  mutate(treatment = factor(treatment),
+         subject = factor(subject))
+
+rats <- rats %>% 
+  mutate(ID = factor(ID),
+         Group = factor(Group))
+```
+
+
+### FIrst analysis using the RATS data set
+
+The RATS data set comes from a nutrition study using rats; three groups of rats were put on different diets and their weights were measured approx. weekly except twice in week seven, for a total of nine weeks. The main question here is whether the growth profiles differ between the three groups. 
+
+For this analysis, we are going to ignore the fact that the repeated measures from the same rodents are most likely correlated with each other, and we are going to assume they all are independent.
+
+```{r}
+# Overview of the data
+
+dim(rats)
+str(rats)
+summary(rats)
+```
+
+The RATS data set has 176 observations and five variables: individual rat IDs, the (diet) Group they belong to, WD indicating the weight measurement day, Weight of the rats and time, which tells us the same measurement day as WD but it is in a form which can be used in analysis etc. 
+
+
+```{r}
+# Graphical overview of the data
+
+ggplot(rats, aes(x = time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(rats$Weight), max(rats$Weight)))
+```
+
+
+In the plot above we have three graphs corresponding to the three diet groups. The lines represent the individual rats' weights as a function of time. It seems that the weights increase with time; the increase is modest in Group 1 and there is less variability in that group compared to the other two groups. It also seems like the variability decreases with time, at least if we exclude some of the outliers. We can also clearly see that the starting weight varies a lot (especially between groups) and that the rats that have high weight at baseline have higher weights at the end of the study as well (phenomenon called as tracking). This would indicate that treating the rats and their weights as independent measurements is not a good idea, but for the sake of the example and assignment, we will continue with that approach. 
+# We want to standardise according to the time point the measurements belong to
+
+```{r}
+# Let's standardise the weight variable to see the tracking effect more clearly
+
+rats <- rats %>% 
+  group_by(time) %>% 
+  mutate(stdweight = (Weight - mean(Weight) / sd(Weight))) %>% 
+  ungroup()
+
+# Plot the graph again using the standardised weights
+
+ggplot(rats, aes(x = time, y = stdweight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(rats$Weight), max(rats$Weight)))
+```
+
+
+To be honest, I do not see much difference compared to the original graph, although the tracking is still there.
+
+
+
+Let's make a tidier summary graph of the weights. There are 8 rats in group 1 and 4 in group 2 and 3, which has to be taken into account when calculating SEs. 
+
+```{r}
+# Create a new data set with summarised mean and standard error of the weights by group and time
+
+ratss <- rats %>% 
+  group_by(Group, time) %>% 
+  summarise(mean = mean(Weight),
+            se = sd(Weight)) %>% 
+  ungroup()
+
+ratss <- ratss %>% 
+  mutate(se = ifelse(Group==1,se/sqrt(8),se/sqrt(4))) # somehow I didn't get the ifelse structure to work in the first function so had to do it separately
+
+# Plot the mean profiles
+
+ggplot(ratss, aes(x = time, y = mean, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1,2,3)) +
+  geom_point(size=3) +
+  scale_shape_manual(values = c(1,2,5)) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se, linetype="1"), width=0.3) +
+  #theme(legend.position = c(1,0.8)) +
+  scale_y_continuous(name = "mean(weight) +/- se(weight)")
+```
+
+From the graph above we can see that there seems to be significant differences between the growth profiles between group 1 and the two other groups. The starting weight of groups 2 and 3 could be significantly different, but at later time points the SEs overlap so there probably will not be significant differences. 
+
+It seems like the mean weight in group 1 increases by approx. 25g, while it increases by approx. 70g in group 2 and 50g in group 3 (between start and end of the study period). 
+
+
+Now let's get rid of the outliers
+
+```{r}
+# Creating summary data
+ratss2 <- rats %>%
+  filter(time > 1) %>%
+  group_by(Group, ID) %>%
+  summarise( mean=mean(Weight) ) %>%
+  ungroup()
+
+# Draw a boxplot of the mean versus group
+
+ggplot(ratss2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(weight), days 8-64")
+```
+
+
+Here we can identify the outliers in the groups that could cause bias, so let's remove them before furter analyses.
+
+
+
+```{r}
+# Filter out the outliers
+
+# Filter the "easy" outliers
+ratss2 <- ratss2 %>% 
+  filter(mean > 250 & mean < 550)
+
+# Filter the outlier in Group 3
+ratss2 <- ratss2 %>% 
+  filter(!(Group==3 & mean<500))
+
+
+# Plot again
+ggplot(ratss2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(weight), days 8-64")
+```
+
+
+The summary measures seem to be quite different from each other between groups. However, as we saw earlier, the baseline weights were so different that they alone could produce these errors instead of the diets (even though we excluded baseline values from this plot). 
+
+However, we will still assume independence and perform statistical tests. We have three groups to compare, so t-test is not the way to go here. We will use ANOVA to see if the groups are statistically different.  
+
+
+```{r}
+# Perform t-test between each group
+
+anova_result <- aov(mean ~ Group, data = ratss2)
+summary(anova_result)
+```
+
+There is indeed a significant difference between the groups, as is indicated by the p-value (1.69e-14). However, we don't know which groups are different from each other. For this reason, we will perform a posthoc test.
+
+```{r}
+# Perform the posthoc test
+library(rstatix)
+
+posthoc <- ratss2 %>% 
+  tukey_hsd(mean~Group)
+
+posthoc
+```
+
+
+As can be seen from the posthoc table, all the groups are significantly different from each other. 
+
+Baseline values are usually correlated with summary measures and thus we would be more likely to see differences, so it will probably not make a difference here so we will not go into it.
+
+
+
+### Second analysis using the BPRS data set
+
+Overview of the data
+
+```{r}
+dim(bprs)
+str(bprs)
+```
+
+Bprs data set has measurements from 40 male subjects who were randomly assigned to a treatment group. Each subject was rated on a psychiatric rating scale (BPRS). Measurements were taken at baseline before treatment (week0) and after treatment began once a week for eight weeks. BPRS assesses the level of 18 symptoms for schizophrenia (each rated from 1 (not present) to 7 (extremely severe)). 
+
+Our data set is already in a long format with 360 rows and five variables: treatment group, subject, weeks, bprs score and week (week indicates the same information (time point of measurement) as weeks, but it can be used in the analyses). 
+
+
+
+```{r}
+# Graphical overview of the data
+
+ggplot(bprs, aes(x = week, y = bprs, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(bprs$bprs), max(bprs$bprs)))
+```
+
+Here we can see individual males in the study and how their BPRS scores behave during the study. The scores seem to decrease in both groups during the 8 weeks, and the subjects with high baseline scores seem to have higher scores at the end as well (tracking). The variability seems to be higher in the baseline as well compared to the week-8 time point. 
+
+Let's still ignore that the data seems to be correlated and fit a normal linear regression model and see how to treatment groups affect the BPRS score.
+
+```{r}
+# create a regression model bprs_reg
+bprs_reg <- lm(bprs ~ week + treatment, data = bprs)
+
+# print out a summary of the model
+summary(bprs_reg)
+```
+According to the model, time seems to significantly predict the score while treatment does not. However, the model only explains roughly 19 % of the variability in the bprs score, so it is not a good fit anyway.
+
+
+It seems like the starting points differ a lot between the subjects, and we know that the scores of the same participant are likely correlated. It would make sense to fit a random intercept model to allow the intercept to vary between subjects. 
+
+```{r}
+# Create a random intercept model
+bprs_ref <- lmer(bprs ~ week + treatment + (1 | subject), data = bprs, REML = FALSE)
+
+# Print the summary of the model
+summary(bprs_ref)
+```
+
+The variance of the random effect (subject) shows how much the bprs scores vary between participants. 
+
+Only allowing the intercept to vary between participants is often not enough. Now we will fit a random intercept and slope model to allow both the intercept and the slope to vary between participants. 
+
+```{r}
+# Create a random intercept and slope model
+bprs_ref1 <- lmer(bprs ~ week + treatment + (week | subject), data = bprs, REML = FALSE)
+
+# Print the summary of the model
+summary(bprs_ref1)
+```
+
+```{r}
+# Perform an ANOVA test on the two models
+anova(bprs_ref1, bprs_ref)
+```
+
+Here we can see that the fixed effects are almost the same, but the chi-squared test is significant, indicating that the random intercept and slope model is a better fit. 
+
+Now, we can add a treatment*week interaction term to see if the change in time interacts with how the treatment affects the bprs scores.
+
+
+```{r}
+# create a random intercept and random slope model with the interaction
+
+bprs_ref2 <- lmer(bprs ~ week + treatment + treatment*week + (week | subject), data = bprs, REML = FALSE)
+
+
+# print a summary of the model
+summary(bprs_ref2)
+
+# perform an ANOVA test on the two models
+anova(bprs_ref2, bprs_ref1)
+```
+
+
+It seems that the chi-squared test is not significant between the models, indicating there is no significant interaction between time and treatment group. 
+
+
+
+```{r}
+# draw the plot of bprs with the observed values
+ggplot(bprs, aes(x = week, y = bprs, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(bprs$bprs), max(bprs$bprs)))
+```
+
+
+```{r}
+# Create a vector of the fitted values
+Fitted <- fitted(bprs_ref2)
+
+# Create a new column fitted to bprs
+bprs$fitted <- Fitted
+
+# draw the plot of bprs with the Fitted values 
+
+ggplot(bprs, aes(x = week, y = fitted, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(bprs$bprs), max(bprs$bprs)))
+```
+
+
+
+It seems that the fitted values are almost identical in the two groups, and they do not represent the underlying data that well. However, the trend is downwards as was in the original data so similarities are there.  
+
